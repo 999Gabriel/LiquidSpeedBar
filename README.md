@@ -9,6 +9,7 @@ Minimal macOS menu bar network speed app built in Swift.
 - Mini activity graph in the menu bar and popover
 - Copy diagnostics snapshot
 - Buy Me a Coffee support button
+- Custom app icon from `source/liquidspeedbar.png` (or fallback `Sources/LiquidSpeedBar/liquidspeedbar.png`)
 
 ## Development
 
@@ -36,6 +37,12 @@ Output files:
 - `dist/LiquidSpeedBar-macOS-<version>.dmg`
 - `dist/LiquidSpeedBar-macOS-<version>.app.tar.gz`
 
+The icon is generated automatically from your PNG via:
+
+```bash
+scripts/generate-icon-assets.sh
+```
+
 ### 2) Install From Terminal (one command)
 
 Users can install with:
@@ -62,11 +69,17 @@ This generates an App Store export under `dist/appstore/export`.
 
 ## CI Release Automation
 
-Tag a version (for example `v1.0.0`) and push it to trigger the GitHub Actions workflow that builds and publishes release assets (`.dmg` + `.app.tar.gz`) to GitHub Releases:
+Tag a version (for example `v1.0.1`) and push it to trigger the GitHub Actions workflow that builds and publishes release assets (`.dmg` + `.app.tar.gz`) to GitHub Releases:
 
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v1.0.1
+git push origin v1.0.1
+```
+
+If you need to run the release workflow manually for an existing tag, dispatch it against that tag ref:
+
+```bash
+gh workflow run release-macos.yml --repo 999Gabriel/LiquidSpeedBar --ref v1.0.1
 ```
 
 If you need to force-refresh raw script cache when testing installer updates:
