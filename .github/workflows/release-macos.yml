@@ -17,6 +17,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install build dependencies
+        run: |
+          brew update
+          brew install xcodegen
+
       - name: Build DMG and app archive
         run: |
           chmod +x scripts/package-macos.sh
