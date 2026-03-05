@@ -1,0 +1,36 @@
+name: Build macOS Release Assets
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build DMG and app archive
+        run: |
+          chmod +x scripts/package-macos.sh
+          scripts/package-macos.sh
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiquidSpeedBar-macOS-artifacts
+          path: |
+            dist/*.dmg
+            dist/*.app.tar.gz
+
+      - name: Publish release assets
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/*.dmg
+            dist/*.app.tar.gz
