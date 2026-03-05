@@ -1,117 +1,67 @@
 import Darwin
 import Foundation
-import SystemConfiguration
 
 @MainActor
 final class NetworkSpeedMonitor: ObservableObject {
-    struct Mood {
-        let emoji: String
-        let description: String
-    }
-
     @Published private(set) var downloadBytesPerSecond: Double = 0
     @Published private(set) var uploadBytesPerSecond: Double = 0
     @Published private(set) var lastUpdated: Date = .now
-    @Published private(set) var activeInterfaceName: String = "auto"
-    @Published private(set) var downloadHistoryMbps: [Double] = []
-    @Published private(set) var uploadHistoryMbps: [Double] = []
-    @Published private(set) var isPaused: Bool = false
 
-    private let samplingInterval: TimeInterval = 1.0
-    private let historyLimit = 90
+    private var previousSample: ByteSample?
     private var timer: Timer?
-    private var previousSample: NetworkByteSample?
+    private let sampleInterval: TimeInterval = 1.0
 
-    var totalBytesPerSecond: Double {
-        downloadBytesPerSecond + uploadBytesPerSecond
+    var downloadCompact: String {
+        Self.formatCompact(bytesPerSecond: downloadBytesPerSecond)
     }
 
-    var downloadMbps: Double {
-        downloadBytesPerSecond * 8.0 / 1_000_000.0
+    var uploadCompact: String {
+        Self.formatCompact(bytesPerSecond: uploadBytesPerSecond)
     }
 
-    var uploadMbps: Double {
-        uploadBytesPerSecond * 8.0 / 1_000_000.0
+    var downloadDetailed: String {
+        Self.formatDetailed(bytesPerSecond: downloadBytesPerSecond)
     }
 
-    var totalMbps: Double {
-        downloadMbps + uploadMbps
+    var uploadDetailed: String {
+        Self.formatDetailed(bytesPerSecond: uploadBytesPerSecond)
     }
 
-    var peakMbps: Double {
-        max(10.0, downloadHistoryMbps.max() ?? 0, uploadHistoryMbps.max() ?? 0)
-    }
+    var moodEmoji: String {
+        let totalMbps = (downloadBytesPerSecond + uploadBytesPerSecond) * 8.0 / 1_000_000.0
 
-    var compactSpeedText: String {
-        Self.format(bytesPerSecond: totalBytesPerSecond)
-    }
-
-    var downloadText: String {
-        Self.format(bytesPerSecond: downloadBytesPerSecond)
-    }
-
-    var uploadText: String {
-        Self.format(bytesPerSecond: uploadBytesPerSecond)
-    }
-
-    var downloadMenuText: String {
-        Self.formatMenuRate(bytesPerSecond: downloadBytesPerSecond)
-    }
-
-    var uploadMenuText: String {
-        Self.formatMenuRate(bytesPerSecond: uploadBytesPerSecond)
-    }
-
-    var speedMood: Mood {
         switch totalMbps {
-        case ..<2:
-            return Mood(emoji: "😴", description: "Network is sleepy")
-        case ..<15:
-            return Mood(emoji: "🙂", description: "Steady and chill")
-        case ..<80:
-            return Mood(emoji: "😄", description: "Smooth and happy")
-        case ..<250:
-            return Mood(emoji: "🚀", description: "Flying fast")
+        case ..<1.0:
+            return "😕"
+        case ..<8.0:
+            return "🙂"
+        case ..<40.0:
+            return "😄"
+        case ..<150.0:
+            return "🚀"
         default:
-            return Mood(emoji: "🤯", description: "Blazing speed")
+            return "🤯"
+        }
+    }
+
+    var moodText: String {
+        let totalMbps = (downloadBytesPerSecond + uploadBytesPerSecond) * 8.0 / 1_000_000.0
+
+        switch totalMbps {
+        case ..<1.0:
+            return "Very slow network"
+        case ..<8.0:
+            return "Usable connection"
+        case ..<40.0:
+            return "Good speed"
+        case ..<150.0:
+            return "Fast connection"
+        default:
+            return "Excellent speed"
         }
     }
 
     init() {
-        sampleNow()
-        startSampling()
-    }
-
-    func toggleSampling() {
-        if isPaused {
-            resumeSampling()
-        } else {
-            pauseSampling()
-        }
-    }
-
-    func resetHistory() {
-        downloadHistoryMbps.removeAll()
-        uploadHistoryMbps.removeAll()
-    }
-
-    func forceRefresh() {
-        sampleNow()
-    }
-
-    private func pauseSampling() {
-        timer?.invalidate()
-        timer = nil
-        isPaused = true
-    }
-
-    private func resumeSampling() {
-        guard isPaused else {
-            return
-        }
-
-        isPaused = false
-        previousSample = nil
         sampleNow()
         startSampling()
     }
@@ -121,7 +71,7 @@ final class NetworkSpeedMonitor: ObservableObject {
             return
         }
 
-        timer = Timer.scheduledTimer(withTimeInterval: samplingInterval, repeats: true) { [weak self] _ in
+        timer = Timer.scheduledTimer(withTimeInterval: sampleInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.sampleNow()
             }
@@ -129,17 +79,14 @@ final class NetworkSpeedMonitor: ObservableObject {
     }
 
     private func sampleNow() {
-        let preferredInterface = PreferredInterfaceResolver.resolve()
-        let sample = NetworkByteSample.capture(preferredInterface: preferredInterface)
+        let sample = ByteSample.capture()
 
         defer {
             previousSample = sample
             lastUpdated = sample.timestamp
-            activeInterfaceName = sample.interfaceName ?? "aggregate"
         }
 
         guard let previousSample else {
-            appendHistory(downloadMbps: 0, uploadMbps: 0)
             return
         }
 
@@ -148,37 +95,37 @@ final class NetworkSpeedMonitor: ObservableObject {
             return
         }
 
-        let downloadDelta = sample.receivedBytes >= previousSample.receivedBytes
-            ? sample.receivedBytes - previousSample.receivedBytes
-            : 0
-        let uploadDelta = sample.sentBytes >= previousSample.sentBytes
-            ? sample.sentBytes - previousSample.sentBytes
-            : 0
+        let downloadDelta = sample.receivedBytes >= previousSample.receivedBytes ? sample.receivedBytes - previousSample.receivedBytes : 0
+        let uploadDelta = sample.sentBytes >= previousSample.sentBytes ? sample.sentBytes - previousSample.sentBytes : 0
 
         downloadBytesPerSecond = Double(downloadDelta) / elapsed
         uploadBytesPerSecond = Double(uploadDelta) / elapsed
-
-        appendHistory(downloadMbps: downloadMbps, uploadMbps: uploadMbps)
     }
 
-    private func appendHistory(downloadMbps: Double, uploadMbps: Double) {
-        downloadHistoryMbps.append(max(downloadMbps, 0))
-        uploadHistoryMbps.append(max(uploadMbps, 0))
+    private static func formatCompact(bytesPerSecond: Double) -> String {
+        let units = ["B", "K", "M", "G"]
+        var value = max(0, bytesPerSecond)
+        var unitIndex = 0
 
-        if downloadHistoryMbps.count > historyLimit {
-            downloadHistoryMbps.removeFirst(downloadHistoryMbps.count - historyLimit)
+        while value >= 1000, unitIndex < units.count - 1 {
+            value /= 1000
+            unitIndex += 1
         }
 
-        if uploadHistoryMbps.count > historyLimit {
-            uploadHistoryMbps.removeFirst(uploadHistoryMbps.count - historyLimit)
+        if unitIndex == 0 {
+            return String(format: "%.0fB", value)
         }
+
+        if value >= 100 {
+            return String(format: "%.0f%@", value, units[unitIndex])
+        }
+
+        return String(format: "%.1f%@", value, units[unitIndex])
     }
 
-    static func format(bytesPerSecond: Double) -> String {
-        let safeValue = max(bytesPerSecond, 0)
+    private static func formatDetailed(bytesPerSecond: Double) -> String {
         let units = ["B/s", "KB/s", "MB/s", "GB/s"]
-
-        var value = safeValue
+        var value = max(0, bytesPerSecond)
         var unitIndex = 0
 
         while value >= 1000, unitIndex < units.count - 1 {
@@ -192,81 +139,29 @@ final class NetworkSpeedMonitor: ObservableObject {
 
         return String(format: "%.1f %@", value, units[unitIndex])
     }
-
-    static func formatMenuRate(bytesPerSecond: Double) -> String {
-        let safeValue = max(bytesPerSecond, 0)
-        let units = ["B", "K", "M", "G"]
-
-        var value = safeValue
-        var unitIndex = 0
-
-        while value >= 1000, unitIndex < units.count - 1 {
-            value /= 1000
-            unitIndex += 1
-        }
-
-        if unitIndex == 0 {
-            return String(format: "%.0f%@", value, units[unitIndex])
-        }
-
-        if value >= 100 {
-            return String(format: "%.0f%@", value, units[unitIndex])
-        }
-
-        return String(format: "%.1f%@", value, units[unitIndex])
-    }
 }
 
-private struct NetworkByteSample {
+private struct ByteSample {
     let timestamp: Date
-    let interfaceName: String?
     let receivedBytes: UInt64
     let sentBytes: UInt64
 
-    static func capture(preferredInterface: String?) -> NetworkByteSample {
-        let countersByInterface = InterfaceCounterCollector.collect()
-
-        let interfaceName: String?
-        let counters: InterfaceCounter
-
-        if let preferredInterface, let preferredCounters = countersByInterface[preferredInterface] {
-            interfaceName = preferredInterface
-            counters = preferredCounters
-        } else {
-            interfaceName = nil
-            counters = InterfaceCounterCollector.aggregate(countersByInterface)
-        }
-
-        return NetworkByteSample(
-            timestamp: Date(),
-            interfaceName: interfaceName,
-            receivedBytes: counters.receivedBytes,
-            sentBytes: counters.sentBytes
-        )
-    }
-}
-
-private struct InterfaceCounter {
-    var receivedBytes: UInt64
-    var sentBytes: UInt64
-}
-
-private enum InterfaceCounterCollector {
-    static func collect() -> [String: InterfaceCounter] {
+    static func capture() -> ByteSample {
         var addressPointer: UnsafeMutablePointer<ifaddrs>?
         guard getifaddrs(&addressPointer) == 0, let firstAddress = addressPointer else {
-            return [:]
+            return ByteSample(timestamp: Date(), receivedBytes: 0, sentBytes: 0)
         }
 
         defer {
             freeifaddrs(addressPointer)
         }
 
-        var countersByInterface: [String: InterfaceCounter] = [:]
-        var pointer: UnsafeMutablePointer<ifaddrs>? = firstAddress
+        var totalReceived: UInt64 = 0
+        var totalSent: UInt64 = 0
 
-        while let currentPointer = pointer {
-            let interface = currentPointer.pointee
+        var pointer: UnsafeMutablePointer<ifaddrs>? = firstAddress
+        while let current = pointer {
+            let interface = current.pointee
             pointer = interface.ifa_next
 
             guard let cName = interface.ifa_name else {
@@ -274,10 +169,13 @@ private enum InterfaceCounterCollector {
             }
 
             let name = String(cString: cName)
+            if name.hasPrefix("lo") || name.hasPrefix("awdl") || name.hasPrefix("llw") || name.hasPrefix("utun") {
+                continue
+            }
+
             let flags = Int32(interface.ifa_flags)
             let isUp = (flags & Int32(IFF_UP)) != 0
             let isLoopback = (flags & Int32(IFF_LOOPBACK)) != 0
-
             guard isUp, !isLoopback else {
                 continue
             }
@@ -286,62 +184,10 @@ private enum InterfaceCounterCollector {
                 continue
             }
 
-            let receivedBytes = UInt64(data.pointee.ifi_ibytes)
-            let sentBytes = UInt64(data.pointee.ifi_obytes)
-
-            if let existing = countersByInterface[name] {
-                countersByInterface[name] = InterfaceCounter(
-                    receivedBytes: max(existing.receivedBytes, receivedBytes),
-                    sentBytes: max(existing.sentBytes, sentBytes)
-                )
-            } else {
-                countersByInterface[name] = InterfaceCounter(
-                    receivedBytes: receivedBytes,
-                    sentBytes: sentBytes
-                )
-            }
+            totalReceived += UInt64(data.pointee.ifi_ibytes)
+            totalSent += UInt64(data.pointee.ifi_obytes)
         }
 
-        return countersByInterface
-    }
-
-    static func aggregate(_ countersByInterface: [String: InterfaceCounter]) -> InterfaceCounter {
-        var totals = InterfaceCounter(receivedBytes: 0, sentBytes: 0)
-
-        for (name, counters) in countersByInterface {
-            guard !name.hasPrefix("awdl"), !name.hasPrefix("llw"), !name.hasPrefix("utun") else {
-                continue
-            }
-
-            totals.receivedBytes += counters.receivedBytes
-            totals.sentBytes += counters.sentBytes
-        }
-
-        return totals
-    }
-}
-
-private enum PreferredInterfaceResolver {
-    static func resolve() -> String? {
-        if let interface = primaryInterface(for: "State:/Network/Global/IPv4") {
-            return interface
-        }
-
-        return primaryInterface(for: "State:/Network/Global/IPv6")
-    }
-
-    private static func primaryInterface(for key: String) -> String? {
-        guard let store = SCDynamicStoreCreate(nil, "LiquidSpeedBar" as CFString, nil, nil) else {
-            return nil
-        }
-
-        guard
-            let dictionary = SCDynamicStoreCopyValue(store, key as CFString) as? [String: Any],
-            let interface = dictionary["PrimaryInterface"] as? String
-        else {
-            return nil
-        }
-
-        return interface
+        return ByteSample(timestamp: Date(), receivedBytes: totalReceived, sentBytes: totalSent)
     }
 }

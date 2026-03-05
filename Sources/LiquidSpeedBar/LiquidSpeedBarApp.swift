@@ -8,23 +8,70 @@ struct LiquidSpeedBarApp: App {
 
     var body: some Scene {
         MenuBarExtra {
-            SpeedPopoverView(monitor: monitor)
-                .frame(width: 390)
-                .padding(14)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 8) {
+                    Text(monitor.moodEmoji)
+                        .font(.system(size: 20))
+
+                    Text(monitor.moodText)
+                        .font(.system(size: 13, weight: .semibold, design: .rounded))
+                }
+
+                HStack {
+                    Text("Download")
+                    Spacer(minLength: 10)
+                    Text(monitor.downloadDetailed)
+                        .monospacedDigit()
+                }
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+
+                HStack {
+                    Text("Upload")
+                    Spacer(minLength: 10)
+                    Text(monitor.uploadDetailed)
+                        .monospacedDigit()
+                }
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+
+                Text("Updated \(monitor.lastUpdated, style: .time)")
+                    .font(.system(size: 11, weight: .regular, design: .rounded))
+                    .foregroundStyle(.secondary)
+
+                Divider()
+
+                Button("Quit") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(12)
+            .frame(width: 240)
         } label: {
-            MenuBarBubble(
-                emoji: monitor.speedMood.emoji,
-                downloadText: monitor.downloadMenuText,
-                uploadText: monitor.uploadMenuText
+            MenuBarCompactLabel(
+                emoji: monitor.moodEmoji,
+                downloadCompact: monitor.downloadCompact,
+                uploadCompact: monitor.uploadCompact
             )
         }
         .menuBarExtraStyle(.window)
+    }
+}
 
-        Window("LiquidSpeedBar Dashboard", id: "dashboard") {
-            NetworkDashboardWindow(monitor: monitor)
-                .frame(minWidth: 880, minHeight: 560)
+private struct MenuBarCompactLabel: View {
+    let emoji: String
+    let downloadCompact: String
+    let uploadCompact: String
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(emoji)
+                .font(.system(size: 12))
+            Text("↓\(downloadCompact)")
+            Text("↑\(uploadCompact)")
         }
-        .defaultSize(width: 920, height: 600)
+        .font(.system(size: 11, weight: .semibold, design: .rounded))
+        .monospacedDigit()
+        .lineLimit(1)
     }
 }
 
