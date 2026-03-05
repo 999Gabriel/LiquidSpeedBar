@@ -5,7 +5,7 @@ Minimal macOS menu bar network speed app built in Swift.
 ## What It Does
 
 - Shows **live upload and download speed directly in the menu bar**.
-- Uses a compact label for limited space: `emoji + ↓download + ↑upload`.
+- Uses a compact two-line stacked label for limited space: emoji on the left, `↓download` above `↑upload` on the right.
 - Emoji reflects current overall speed (slow to very fast).
 - Click opens a small status panel with details and quit button.
 
