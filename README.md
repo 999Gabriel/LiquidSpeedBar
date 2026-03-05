@@ -62,11 +62,17 @@ This generates an App Store export under `dist/appstore/export`.
 
 ## CI Release Automation
 
-Tag a version (for example `v1.0.0`) and push it to trigger the GitHub Actions workflow that builds and uploads release assets:
+Tag a version (for example `v1.0.0`) and push it to trigger the GitHub Actions workflow that builds and publishes release assets (`.dmg` + `.app.tar.gz`) to GitHub Releases:
 
 ```bash
 git tag v1.0.0
 git push origin v1.0.0
+```
+
+If you need to force-refresh raw script cache when testing installer updates:
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/999Gabriel/LiquidSpeedBar/main/scripts/install.sh?$(date +%s)" | bash
 ```
 
 Workflow file: `.github/workflows/release-macos.yml`
