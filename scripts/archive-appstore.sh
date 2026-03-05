@@ -16,6 +16,7 @@ if [[ -z "$TEAM_ID" ]]; then
   exit 1
 fi
 
+"$ROOT_DIR/scripts/generate-icon-assets.sh"
 "$ROOT_DIR/scripts/bootstrap-xcodeproj.sh"
 
 mkdir -p "$DIST_DIR"
