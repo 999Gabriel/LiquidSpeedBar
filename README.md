@@ -38,11 +38,15 @@ Output files:
 
 ### 2) Install From Terminal (one command)
 
-After you publish release assets on GitHub, users can install with:
+Users can install with:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/999Gabriel/LiquidSpeedBar/main/scripts/install.sh | bash
 ```
+
+Installer behavior:
+- If a GitHub release contains a `.app.tar.gz` asset, it installs that.
+- If no release exists yet, it automatically falls back to building from source locally and then installs.
 
 This installs `LiquidSpeedBar.app` to `/Applications`.
 
