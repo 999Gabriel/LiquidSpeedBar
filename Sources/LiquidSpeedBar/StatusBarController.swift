@@ -80,6 +80,8 @@ private struct StatusBarCompactView: View {
                 )
             }
 
+            HealthPill(score: monitor.healthScore)
+
             MiniActivityGraph(
                 download: monitor.downloadHistoryMbps,
                 upload: monitor.uploadHistoryMbps,
@@ -137,12 +139,28 @@ private struct StatusPopoverView: View {
             )
             .frame(height: 74)
 
+            HealthInsightCard(
+                score: monitor.healthScore,
+                state: monitor.healthState,
+                insight: monitor.insightText
+            )
+
             Divider()
 
-            Button("Quit") {
-                NSApplication.shared.terminate(nil)
+            HStack {
+                Button("Copy Diagnostics") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(monitor.diagnosticsSnapshot, forType: .string)
+                }
+                .buttonStyle(.borderedProminent)
+
+                Spacer(minLength: 0)
+
+                Button("Quit") {
+                    NSApplication.shared.terminate(nil)
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.bordered)
         }
         .font(.system(size: 12, weight: .medium, design: .rounded))
         .padding(12)
@@ -246,5 +264,84 @@ private struct MiniActivityGraph: View {
         }
 
         return path
+    }
+}
+
+private struct HealthPill: View {
+    let score: Int
+
+    var body: some View {
+        Text("\(score)")
+            .font(.system(size: 9.5, weight: .bold, design: .rounded))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 2)
+            .background(
+                Capsule(style: .continuous)
+                    .fill(colorForScore(score))
+            )
+    }
+}
+
+private struct HealthInsightCard: View {
+    let score: Int
+    let state: String
+    let insight: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Health \(score)/100")
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+
+                Spacer(minLength: 0)
+
+                Text(state)
+                    .font(.system(size: 11, weight: .semibold, design: .rounded))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(
+                        Capsule(style: .continuous)
+                            .fill(colorForScore(score).opacity(0.18))
+                    )
+            }
+
+            GeometryReader { proxy in
+                let width = proxy.size.width
+                let fill = max(0, min(CGFloat(score) / 100.0, 1.0)) * width
+
+                ZStack(alignment: .leading) {
+                    Capsule(style: .continuous)
+                        .fill(Color.black.opacity(0.08))
+
+                    Capsule(style: .continuous)
+                        .fill(colorForScore(score))
+                        .frame(width: fill)
+                }
+            }
+            .frame(height: 8)
+
+            Text(insight)
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+        .padding(9)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color.black.opacity(0.03))
+        )
+    }
+}
+
+private func colorForScore(_ score: Int) -> Color {
+    switch score {
+    case ..<35:
+        return Color(red: 0.91, green: 0.35, blue: 0.29)
+    case ..<60:
+        return Color(red: 0.93, green: 0.66, blue: 0.19)
+    case ..<80:
+        return Color(red: 0.24, green: 0.62, blue: 0.98)
+    default:
+        return Color(red: 0.16, green: 0.72, blue: 0.42)
     }
 }

@@ -34,6 +34,80 @@ final class NetworkSpeedMonitor: ObservableObject {
         max(6.0, downloadHistoryMbps.max() ?? 0, uploadHistoryMbps.max() ?? 0)
     }
 
+    var healthScore: Int {
+        let down = downloadBytesPerSecond * 8.0 / 1_000_000.0
+        let up = uploadBytesPerSecond * 8.0 / 1_000_000.0
+        let total = down + up
+
+        let throughputScore = min(70.0, total / 120.0 * 70.0)
+
+        let uploadBalanceRatio: Double
+        if down < 0.5 {
+            uploadBalanceRatio = 1.0
+        } else {
+            uploadBalanceRatio = min(max(up / down, 0), 1)
+        }
+        let balanceScore = uploadBalanceRatio * 15.0
+
+        let variation = shortTermVariation
+        let stabilityScore = max(0.0, 15.0 - min(variation * 18.0, 15.0))
+
+        let totalScore = throughputScore + balanceScore + stabilityScore
+        return Int(min(max(totalScore.rounded(), 0), 100))
+    }
+
+    var healthState: String {
+        switch healthScore {
+        case ..<35:
+            return "Poor"
+        case ..<60:
+            return "Fair"
+        case ..<80:
+            return "Good"
+        case ..<92:
+            return "Great"
+        default:
+            return "Excellent"
+        }
+    }
+
+    var insightText: String {
+        let down = downloadBytesPerSecond * 8.0 / 1_000_000.0
+        let up = uploadBytesPerSecond * 8.0 / 1_000_000.0
+        let total = down + up
+        let variation = shortTermVariation
+
+        if total < 1.0 {
+            return "Connection crawl detected."
+        }
+
+        if down > 10.0, up < down * 0.15 {
+            return "Upload bottleneck detected."
+        }
+
+        if variation > 0.8 {
+            return "High speed volatility detected."
+        }
+
+        if total > 80.0, variation < 0.25 {
+            return "Connection is fast and stable."
+        }
+
+        return "Connection is healthy overall."
+    }
+
+    var diagnosticsSnapshot: String {
+        let iso = ISO8601DateFormatter().string(from: lastUpdated)
+        return """
+        LiquidSpeedBar Diagnostics
+        Time: \(iso)
+        Download: \(downloadDetailed)
+        Upload: \(uploadDetailed)
+        Health: \(healthScore)/100 (\(healthState))
+        Insight: \(insightText)
+        """
+    }
+
     var moodEmoji: String {
         let totalMbps = (downloadBytesPerSecond + uploadBytesPerSecond) * 8.0 / 1_000_000.0
 
@@ -126,6 +200,32 @@ final class NetworkSpeedMonitor: ObservableObject {
         if uploadHistoryMbps.count > historyLimit {
             uploadHistoryMbps.removeFirst(uploadHistoryMbps.count - historyLimit)
         }
+    }
+
+    private var shortTermVariation: Double {
+        let downRecent = Array(downloadHistoryMbps.suffix(10))
+        let upRecent = Array(uploadHistoryMbps.suffix(10))
+        let count = min(downRecent.count, upRecent.count)
+        guard count >= 4 else {
+            return 0
+        }
+
+        var totals: [Double] = []
+        totals.reserveCapacity(count)
+        for index in 0..<count {
+            totals.append(downRecent[index] + upRecent[index])
+        }
+
+        let mean = totals.reduce(0, +) / Double(totals.count)
+        guard mean > 0.01 else {
+            return 1.0
+        }
+
+        let variance = totals
+            .map { pow($0 - mean, 2) }
+            .reduce(0, +) / Double(totals.count)
+        let stddev = sqrt(variance)
+        return stddev / mean
     }
 
     private static func formatCompact(bytesPerSecond: Double) -> String {

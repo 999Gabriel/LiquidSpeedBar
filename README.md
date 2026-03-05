@@ -8,6 +8,8 @@ Minimal macOS menu bar network speed app built in Swift.
 - Uses a wider stacked menu bar widget: emoji on the left, upload/download values in the center, and a live mini activity graph on the right.
 - Emoji reflects current overall speed (slow to very fast).
 - Click opens a small status panel with details and quit button.
+- Adds a real-time **Health Score** with bottleneck/instability insight.
+- Includes **Copy Diagnostics** for quick sharing of current network conditions.
 
 ## Run
 
