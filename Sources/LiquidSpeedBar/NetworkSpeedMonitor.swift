@@ -5,11 +5,14 @@ import Foundation
 final class NetworkSpeedMonitor: ObservableObject {
     @Published private(set) var downloadBytesPerSecond: Double = 0
     @Published private(set) var uploadBytesPerSecond: Double = 0
+    @Published private(set) var downloadHistoryMbps: [Double] = []
+    @Published private(set) var uploadHistoryMbps: [Double] = []
     @Published private(set) var lastUpdated: Date = .now
 
     private var previousSample: ByteSample?
     private var timer: Timer?
     private let sampleInterval: TimeInterval = 1.0
+    private let historyLimit: Int = 34
 
     var downloadCompact: String {
         Self.formatCompact(bytesPerSecond: downloadBytesPerSecond)
@@ -25,6 +28,10 @@ final class NetworkSpeedMonitor: ObservableObject {
 
     var uploadDetailed: String {
         Self.formatDetailed(bytesPerSecond: uploadBytesPerSecond)
+    }
+
+    var graphCeilingMbps: Double {
+        max(6.0, downloadHistoryMbps.max() ?? 0, uploadHistoryMbps.max() ?? 0)
     }
 
     var moodEmoji: String {
@@ -87,6 +94,7 @@ final class NetworkSpeedMonitor: ObservableObject {
         }
 
         guard let previousSample else {
+            appendHistory(downloadMbps: 0, uploadMbps: 0)
             return
         }
 
@@ -100,6 +108,24 @@ final class NetworkSpeedMonitor: ObservableObject {
 
         downloadBytesPerSecond = Double(downloadDelta) / elapsed
         uploadBytesPerSecond = Double(uploadDelta) / elapsed
+
+        appendHistory(
+            downloadMbps: downloadBytesPerSecond * 8.0 / 1_000_000.0,
+            uploadMbps: uploadBytesPerSecond * 8.0 / 1_000_000.0
+        )
+    }
+
+    private func appendHistory(downloadMbps: Double, uploadMbps: Double) {
+        downloadHistoryMbps.append(max(downloadMbps, 0))
+        uploadHistoryMbps.append(max(uploadMbps, 0))
+
+        if downloadHistoryMbps.count > historyLimit {
+            downloadHistoryMbps.removeFirst(downloadHistoryMbps.count - historyLimit)
+        }
+
+        if uploadHistoryMbps.count > historyLimit {
+            uploadHistoryMbps.removeFirst(uploadHistoryMbps.count - historyLimit)
+        }
     }
 
     private static func formatCompact(bytesPerSecond: Double) -> String {

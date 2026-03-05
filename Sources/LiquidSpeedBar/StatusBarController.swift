@@ -40,7 +40,7 @@ final class StatusBarController: NSObject {
     private func configurePopover() {
         popover.behavior = .transient
         popover.animates = true
-        popover.contentSize = NSSize(width: 240, height: 150)
+        popover.contentSize = NSSize(width: 276, height: 208)
         popover.contentViewController = NSHostingController(rootView: StatusPopoverView(monitor: monitor))
     }
 
@@ -62,22 +62,34 @@ private struct StatusBarCompactView: View {
     @ObservedObject var monitor: NetworkSpeedMonitor
 
     var body: some View {
-        HStack(alignment: .center, spacing: 5) {
+        HStack(alignment: .center, spacing: 6) {
             Text(monitor.moodEmoji)
-                .font(.system(size: 18))
-                .frame(width: 20)
+                .font(.system(size: 20))
+                .frame(width: 22)
 
             VStack(alignment: .leading, spacing: -1) {
-                Text("↓\(monitor.downloadCompact)")
-                Text("↑\(monitor.uploadCompact)")
+                SpeedLine(
+                    icon: "arrow.down.forward.circle.fill",
+                    value: monitor.downloadCompact,
+                    tint: Color(red: 0.11, green: 0.48, blue: 0.95)
+                )
+                SpeedLine(
+                    icon: "arrow.up.forward.circle.fill",
+                    value: monitor.uploadCompact,
+                    tint: Color(red: 0.09, green: 0.68, blue: 0.43)
+                )
             }
-            .font(.system(size: 11, weight: .bold, design: .rounded))
-            .monospacedDigit()
-            .lineLimit(1)
+
+            MiniActivityGraph(
+                download: monitor.downloadHistoryMbps,
+                upload: monitor.uploadHistoryMbps,
+                ceiling: monitor.graphCeilingMbps
+            )
+            .frame(width: 58, height: 18)
         }
-        .padding(.horizontal, 9)
+        .padding(.horizontal, 10)
         .padding(.vertical, 2)
-        .frame(minWidth: 96, alignment: .leading)
+        .frame(minWidth: 156, alignment: .leading)
         .foregroundStyle(.black.opacity(0.92))
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -104,19 +116,26 @@ private struct StatusPopoverView: View {
                     .font(.system(size: 14, weight: .semibold, design: .rounded))
             }
 
-            HStack {
-                Text("Download")
-                Spacer(minLength: 10)
-                Text(monitor.downloadDetailed)
-                    .monospacedDigit()
-            }
+            SpeedRow(
+                icon: "arrow.down.forward.circle.fill",
+                label: "Download",
+                value: monitor.downloadDetailed,
+                tint: Color(red: 0.11, green: 0.48, blue: 0.95)
+            )
 
-            HStack {
-                Text("Upload")
-                Spacer(minLength: 10)
-                Text(monitor.uploadDetailed)
-                    .monospacedDigit()
-            }
+            SpeedRow(
+                icon: "arrow.up.forward.circle.fill",
+                label: "Upload",
+                value: monitor.uploadDetailed,
+                tint: Color(red: 0.09, green: 0.68, blue: 0.43)
+            )
+
+            MiniActivityGraph(
+                download: monitor.downloadHistoryMbps,
+                upload: monitor.uploadHistoryMbps,
+                ceiling: monitor.graphCeilingMbps
+            )
+            .frame(height: 74)
 
             Divider()
 
@@ -127,6 +146,105 @@ private struct StatusPopoverView: View {
         }
         .font(.system(size: 12, weight: .medium, design: .rounded))
         .padding(12)
-        .frame(width: 240)
+        .frame(width: 276)
+    }
+}
+
+private struct SpeedLine: View {
+    let icon: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: icon)
+                .font(.system(size: 8.5, weight: .bold))
+                .foregroundStyle(tint)
+
+            Text(value)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .lineLimit(1)
+        }
+    }
+}
+
+private struct SpeedRow: View {
+    let icon: String
+    let label: String
+    let value: String
+    let tint: Color
+
+    var body: some View {
+        HStack {
+            Label {
+                Text(label)
+            } icon: {
+                Image(systemName: icon)
+                    .foregroundStyle(tint)
+            }
+
+            Spacer(minLength: 10)
+
+            Text(value)
+                .monospacedDigit()
+        }
+    }
+}
+
+private struct MiniActivityGraph: View {
+    let download: [Double]
+    let upload: [Double]
+    let ceiling: Double
+
+    var body: some View {
+        GeometryReader { proxy in
+            let size = proxy.size
+
+            ZStack {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.black.opacity(0.06))
+
+                linePath(values: download, in: size, maxValue: ceiling)
+                    .stroke(
+                        Color(red: 0.11, green: 0.48, blue: 0.95),
+                        style: StrokeStyle(lineWidth: 1.3, lineCap: .round, lineJoin: .round)
+                    )
+
+                linePath(values: upload, in: size, maxValue: ceiling)
+                    .stroke(
+                        Color(red: 0.09, green: 0.68, blue: 0.43),
+                        style: StrokeStyle(lineWidth: 1.3, lineCap: .round, lineJoin: .round)
+                    )
+            }
+        }
+    }
+
+    private func linePath(values: [Double], in size: CGSize, maxValue: Double) -> Path {
+        let points = Array(values.suffix(34))
+        guard points.count > 1 else {
+            return Path()
+        }
+
+        let width = max(size.width - 4, 1)
+        let height = max(size.height - 4, 1)
+        let stepX = width / CGFloat(points.count - 1)
+        let cap = max(maxValue, 0.1)
+
+        var path = Path()
+        for index in points.indices {
+            let normalized = min(max(points[index] / cap, 0), 1)
+            let x = 2 + CGFloat(index) * stepX
+            let y = 2 + height - CGFloat(normalized) * height
+            let point = CGPoint(x: x, y: y)
+
+            if index == points.startIndex {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+        }
+
+        return path
     }
 }
