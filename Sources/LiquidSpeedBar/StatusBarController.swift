@@ -1,6 +1,9 @@
 import AppKit
 import SwiftUI
 
+private let buyMeACoffeeURL = URL(string: "https://buymeacoffee.com/the999gabriel")!
+private let buyMeACoffeeButtonImageURL = URL(string: "https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png")!
+
 @MainActor
 final class StatusBarController: NSObject {
     private let monitor = NetworkSpeedMonitor()
@@ -145,6 +148,11 @@ private struct StatusPopoverView: View {
                 insight: monitor.insightText
             )
 
+            Link(destination: buyMeACoffeeURL) {
+                BuyMeACoffeeButton()
+            }
+            .buttonStyle(.plain)
+
             Divider()
 
             HStack {
@@ -165,6 +173,36 @@ private struct StatusPopoverView: View {
         .font(.system(size: 12, weight: .medium, design: .rounded))
         .padding(12)
         .frame(width: 276)
+    }
+}
+
+private struct BuyMeACoffeeButton: View {
+    var body: some View {
+        AsyncImage(url: buyMeACoffeeButtonImageURL) { phase in
+            switch phase {
+            case .success(let image):
+                image
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+            default:
+                HStack(spacing: 6) {
+                    Image(systemName: "cup.and.saucer.fill")
+                    Text("Buy me a coffee")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                }
+                .foregroundStyle(.black)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(red: 1.0, green: 0.87, blue: 0.24))
+            }
+        }
+        .frame(width: 200, height: 43)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .strokeBorder(.black.opacity(0.07), lineWidth: 0.7)
+        }
+        .shadow(color: .black.opacity(0.09), radius: 2, x: 0, y: 1)
     }
 }
 

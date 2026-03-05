@@ -28,3 +28,7 @@ swift build
 ```bash
 open Package.swift
 ```
+
+## Support
+
+Buy me a coffee: https://buymeacoffee.com/the999gabriel
