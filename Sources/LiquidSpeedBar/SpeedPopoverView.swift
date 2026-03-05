@@ -1,11 +1,9 @@
 import AppKit
-import Foundation
 import SwiftUI
 
-private let terminalGreen = Color(red: 0.62, green: 0.98, blue: 0.58)
-private let terminalGreenSoft = Color(red: 0.44, green: 0.77, blue: 0.42)
-private let terminalTextDim = Color(red: 0.56, green: 0.64, blue: 0.56)
-private let terminalPanel = Color(red: 0.06, green: 0.09, blue: 0.07)
+private let glassAccentA = Color(red: 0.22, green: 0.54, blue: 0.98)
+private let glassAccentB = Color(red: 0.15, green: 0.78, blue: 0.82)
+private let cardBackground = Color.white.opacity(0.14)
 
 struct MenuBarBubble: View {
     let emoji: String
@@ -13,44 +11,44 @@ struct MenuBarBubble: View {
     let uploadText: String
 
     var body: some View {
-        HStack(spacing: 7) {
+        HStack(spacing: 6) {
             Text(emoji)
                 .font(.system(size: 12))
 
-            Text("\u{2193}\(downloadText)")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+            Text("↓\(downloadText)")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .monospacedDigit()
 
-            Text("\u{2191}\(uploadText)")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
+            Text("↑\(uploadText)")
+                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                .monospacedDigit()
         }
-        .foregroundStyle(.white)
+        .foregroundStyle(.primary)
         .padding(.horizontal, 10)
         .padding(.vertical, 4)
         .background {
-            ZStack {
-                Capsule()
-                    .fill(.ultraThinMaterial)
-
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                .white.opacity(0.52),
-                                Color(red: 0.45, green: 0.68, blue: 0.92).opacity(0.28),
-                                .white.opacity(0.18)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+            Capsule(style: .continuous)
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    Capsule(style: .continuous)
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    .white.opacity(0.46),
+                                    Color(red: 0.35, green: 0.63, blue: 0.98).opacity(0.22),
+                                    .white.opacity(0.10)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-            }
+                }
         }
         .overlay {
-            Capsule()
-                .strokeBorder(.white.opacity(0.72), lineWidth: 0.9)
+            Capsule(style: .continuous)
+                .strokeBorder(.white.opacity(0.56), lineWidth: 0.85)
         }
-        .shadow(color: .black.opacity(0.24), radius: 7, x: 0, y: 2)
-        .compositingGroup()
+        .shadow(color: .black.opacity(0.12), radius: 5, x: 0, y: 1)
     }
 }
 
@@ -59,13 +57,68 @@ struct SpeedPopoverView: View {
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            CommandMenu(monitor: monitor, openDashboard: { openWindow(id: "dashboard") })
+        VStack(alignment: .leading, spacing: 14) {
+            DashboardHero(monitor: monitor)
 
-            Divider()
-                .overlay(.white.opacity(0.2))
+            HStack(spacing: 10) {
+                MetricCard(
+                    title: "Download",
+                    value: monitor.downloadText,
+                    symbol: "arrow.down.circle.fill",
+                    tint: glassAccentA
+                )
 
-            TerminalDashboardPreview(monitor: monitor)
+                MetricCard(
+                    title: "Upload",
+                    value: monitor.uploadText,
+                    symbol: "arrow.up.circle.fill",
+                    tint: glassAccentB
+                )
+            }
+
+            MiniTrafficChart(
+                download: monitor.downloadHistoryMbps,
+                upload: monitor.uploadHistoryMbps,
+                maxMbps: monitor.peakMbps
+            )
+            .frame(height: 124)
+
+            HStack {
+                Label("Interface \(monitor.activeInterfaceName)", systemImage: "network")
+                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+
+                Spacer(minLength: 0)
+
+                Text("Updated \(monitor.lastUpdated, style: .time)")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 8) {
+                Button {
+                    openWindow(id: "dashboard")
+                } label: {
+                    Label("Open Dashboard", systemImage: "rectangle.inset.filled")
+                }
+                .buttonStyle(.borderedProminent)
+
+                Button {
+                    monitor.forceRefresh()
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    Label("Quit", systemImage: "xmark")
+                }
+                .buttonStyle(.bordered)
+            }
+            .tint(glassAccentA)
+            .font(.system(size: 12, weight: .semibold, design: .rounded))
         }
         .padding(16)
         .background {
@@ -73,9 +126,9 @@ struct SpeedPopoverView: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            Color(red: 0.06, green: 0.12, blue: 0.08),
-                            Color(red: 0.02, green: 0.08, blue: 0.05),
-                            Color(red: 0.03, green: 0.04, blue: 0.05)
+                            Color(red: 0.18, green: 0.36, blue: 0.78),
+                            Color(red: 0.15, green: 0.49, blue: 0.72),
+                            Color(red: 0.14, green: 0.27, blue: 0.58)
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -83,11 +136,11 @@ struct SpeedPopoverView: View {
                 )
                 .overlay {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(.ultraThinMaterial.opacity(0.42))
+                        .fill(.ultraThinMaterial.opacity(0.54))
                 }
                 .overlay {
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .strokeBorder(.white.opacity(0.34), lineWidth: 0.9)
+                        .strokeBorder(.white.opacity(0.44), lineWidth: 0.9)
                 }
         }
     }
@@ -97,240 +150,310 @@ struct NetworkDashboardWindow: View {
     @ObservedObject var monitor: NetworkSpeedMonitor
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("LiquidSpeedBar // dashboard")
-                        .font(.system(size: 22, weight: .bold, design: .monospaced))
-                        .foregroundStyle(terminalGreen)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                DashboardHero(monitor: monitor)
 
-                    Text("iface \(monitor.activeInterfaceName) | updated \(monitor.lastUpdated, style: .time)")
-                        .font(.system(size: 13, weight: .regular, design: .monospaced))
-                        .foregroundStyle(terminalTextDim)
+                HStack(spacing: 12) {
+                    MetricCard(
+                        title: "Download",
+                        value: monitor.downloadText,
+                        symbol: "arrow.down.circle.fill",
+                        tint: glassAccentA
+                    )
+
+                    MetricCard(
+                        title: "Upload",
+                        value: monitor.uploadText,
+                        symbol: "arrow.up.circle.fill",
+                        tint: glassAccentB
+                    )
+
+                    MetricCard(
+                        title: "Total",
+                        value: monitor.compactSpeedText,
+                        symbol: "speedometer",
+                        tint: Color(red: 0.40, green: 0.82, blue: 0.96)
+                    )
                 }
 
-                Spacer(minLength: 0)
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Live Traffic")
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
 
-                Text(monitor.speedMood.emoji)
-                    .font(.system(size: 40))
+                    MiniTrafficChart(
+                        download: monitor.downloadHistoryMbps,
+                        upload: monitor.uploadHistoryMbps,
+                        maxMbps: monitor.peakMbps
+                    )
+                    .frame(height: 220)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(.white.opacity(0.26), lineWidth: 0.8)
+                }
+
+                HStack {
+                    Label("Interface \(monitor.activeInterfaceName)", systemImage: "network")
+                    Spacer(minLength: 0)
+                    Text("Updated \(monitor.lastUpdated, style: .time)")
+                }
+                .font(.system(size: 13, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+
+                HStack(spacing: 8) {
+                    Button {
+                        monitor.forceRefresh()
+                    } label: {
+                        Label("Refresh Now", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderedProminent)
+
+                    Button {
+                        monitor.toggleSampling()
+                    } label: {
+                        Label(monitor.isPaused ? "Resume" : "Pause", systemImage: monitor.isPaused ? "play.fill" : "pause.fill")
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button {
+                        monitor.resetHistory()
+                    } label: {
+                        Label("Reset History", systemImage: "trash")
+                    }
+                    .buttonStyle(.bordered)
+
+                    Spacer(minLength: 0)
+
+                    Button {
+                        NSApplication.shared.terminate(nil)
+                    } label: {
+                        Label("Quit", systemImage: "xmark")
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .tint(glassAccentA)
             }
-
-            HStack(spacing: 12) {
-                DashMetric(title: "DOWN", value: monitor.downloadText, accent: terminalGreen)
-                DashMetric(title: "UP", value: monitor.uploadText, accent: Color(red: 0.38, green: 0.93, blue: 0.82))
-                DashMetric(title: "TOTAL", value: monitor.compactSpeedText, accent: Color(red: 0.81, green: 0.95, blue: 0.48))
-                DashMetric(title: "MOOD", value: monitor.speedMood.description, accent: Color(red: 0.92, green: 0.97, blue: 0.72))
-            }
-
-            TerminalDashboardPreview(monitor: monitor)
-                .frame(maxWidth: .infinity)
-
-            HStack {
-                Button(monitor.isPaused ? "$ resume" : "$ pause") {
-                    monitor.toggleSampling()
-                }
-                .buttonStyle(.bordered)
-
-                Button("$ reset-history") {
-                    monitor.resetHistory()
-                }
-                .buttonStyle(.bordered)
-
-                Spacer(minLength: 0)
-
-                Button("$ quit") {
-                    NSApplication.shared.terminate(nil)
-                }
-                .buttonStyle(.borderedProminent)
-            }
-            .tint(.white.opacity(0.24))
-            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            .padding(20)
         }
-        .padding(20)
         .background {
             LinearGradient(
                 colors: [
-                    Color(red: 0.03, green: 0.06, blue: 0.04),
-                    Color(red: 0.02, green: 0.04, blue: 0.03),
-                    Color(red: 0.03, green: 0.03, blue: 0.05)
+                    Color(red: 0.89, green: 0.94, blue: 1.0),
+                    Color(red: 0.85, green: 0.92, blue: 0.98),
+                    Color(red: 0.90, green: 0.94, blue: 0.99)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
-            .overlay {
-                RoundedRectangle(cornerRadius: 28, style: .continuous)
-                    .fill(.ultraThinMaterial.opacity(0.16))
-                    .padding(8)
-            }
             .ignoresSafeArea()
         }
     }
 }
 
-private struct CommandMenu: View {
-    @ObservedObject var monitor: NetworkSpeedMonitor
-    let openDashboard: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("menu")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundStyle(terminalGreen)
-
-            CommandRow(title: "$ open --dashboard", symbol: "rectangle.inset.filled.and.person.filled") {
-                openDashboard()
-            }
-
-            CommandRow(title: monitor.isPaused ? "$ net --resume" : "$ net --pause", symbol: "pause.circle.fill") {
-                monitor.toggleSampling()
-            }
-
-            CommandRow(title: "$ net --refresh", symbol: "arrow.clockwise.circle.fill") {
-                monitor.forceRefresh()
-            }
-
-            CommandRow(title: "$ net --reset-history", symbol: "trash.circle.fill") {
-                monitor.resetHistory()
-            }
-
-            CommandRow(title: "$ quit", symbol: "xmark.circle.fill") {
-                NSApplication.shared.terminate(nil)
-            }
-        }
-    }
-}
-
-private struct TerminalDashboardPreview: View {
+private struct DashboardHero: View {
     @ObservedObject var monitor: NetworkSpeedMonitor
 
     var body: some View {
-        let ceiling = max(monitor.peakMbps, 1.0)
+        HStack(spacing: 12) {
+            Text(monitor.speedMood.emoji)
+                .font(.system(size: 40))
 
-        VStack(alignment: .leading, spacing: 6) {
-            Text("dashboard/live")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundStyle(terminalGreen)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(monitor.compactSpeedText)
+                    .font(.system(size: 32, weight: .bold, design: .rounded))
+                    .contentTransition(.numericText())
 
-            Text("iface: \(monitor.activeInterfaceName)")
-                .font(.system(size: 12, weight: .regular, design: .monospaced))
-                .foregroundStyle(terminalTextDim)
+                Text(monitor.speedMood.description)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.secondary)
+            }
 
-            Text("rx \(barString(value: monitor.downloadMbps, maxValue: ceiling, width: 26)) \(String(format: "%6.1f", monitor.downloadMbps)) Mbps")
-                .font(.system(size: 12, weight: .regular, design: .monospaced))
-                .foregroundStyle(terminalGreen)
+            Spacer(minLength: 0)
 
-            Text("tx \(barString(value: monitor.uploadMbps, maxValue: ceiling, width: 26)) \(String(format: "%6.1f", monitor.uploadMbps)) Mbps")
-                .font(.system(size: 12, weight: .regular, design: .monospaced))
-                .foregroundStyle(Color(red: 0.40, green: 0.91, blue: 0.83))
+            VStack(alignment: .trailing, spacing: 3) {
+                Text("↓ \(monitor.downloadMenuText)/s")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(glassAccentA)
+                    .monospacedDigit()
 
-            Text("rxh \(sparkline(values: monitor.downloadHistoryMbps, maxValue: ceiling, width: 46))")
-                .font(.system(size: 11, weight: .regular, design: .monospaced))
-                .foregroundStyle(terminalGreenSoft)
-
-            Text("txh \(sparkline(values: monitor.uploadHistoryMbps, maxValue: ceiling, width: 46))")
-                .font(.system(size: 11, weight: .regular, design: .monospaced))
-                .foregroundStyle(Color(red: 0.36, green: 0.85, blue: 0.78))
+                Text("↑ \(monitor.uploadMenuText)/s")
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                    .foregroundStyle(glassAccentB)
+                    .monospacedDigit()
+            }
         }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(terminalPanel, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .padding(14)
+        .background(cardBackground, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(.white.opacity(0.18), lineWidth: 0.8)
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .strokeBorder(.white.opacity(0.32), lineWidth: 0.85)
         }
     }
 }
 
-private struct DashMetric: View {
+private struct MetricCard: View {
     let title: String
     let value: String
-    let accent: Color
+    let symbol: String
+    let tint: Color
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title)
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundStyle(accent)
+        VStack(alignment: .leading, spacing: 7) {
+            Label {
+                Text(title)
+            } icon: {
+                Image(systemName: symbol)
+            }
+            .font(.system(size: 12, weight: .medium, design: .rounded))
+            .foregroundStyle(.secondary)
 
             Text(value)
-                .font(.system(size: 15, weight: .semibold, design: .monospaced))
+                .font(.system(size: 20, weight: .semibold, design: .rounded))
                 .lineLimit(1)
-                .minimumScaleFactor(0.72)
-                .foregroundStyle(.white)
+                .minimumScaleFactor(0.75)
+                .contentTransition(.numericText())
+
+            RoundedRectangle(cornerRadius: 2, style: .continuous)
+                .fill(tint)
+                .frame(width: 28, height: 3)
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(terminalPanel, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(cardBackground, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay {
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(accent.opacity(0.28), lineWidth: 0.8)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .strokeBorder(.white.opacity(0.26), lineWidth: 0.8)
         }
     }
 }
 
-private struct CommandRow: View {
-    let title: String
-    let symbol: String
-    let action: () -> Void
+private struct MiniTrafficChart: View {
+    let download: [Double]
+    let upload: [Double]
+    let maxMbps: Double
 
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 8) {
-                Image(systemName: symbol)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(terminalGreen)
+        GeometryReader { proxy in
+            let size = proxy.size
+            let ceiling = max(maxMbps, 1.0)
 
-                Text(title)
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white)
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(cardBackground)
 
-                Spacer(minLength: 0)
+                GridLines()
+                    .stroke(.white.opacity(0.14), style: StrokeStyle(lineWidth: 0.8, dash: [4, 5]))
+                    .padding(10)
+
+                if download.count > 1 {
+                    linePath(values: download, in: size, maxValue: ceiling)
+                        .stroke(
+                            LinearGradient(colors: [glassAccentA, glassAccentA.opacity(0.4)], startPoint: .leading, endPoint: .trailing),
+                            style: StrokeStyle(lineWidth: 2.3, lineCap: .round, lineJoin: .round)
+                        )
+                }
+
+                if upload.count > 1 {
+                    linePath(values: upload, in: size, maxValue: ceiling)
+                        .stroke(
+                            LinearGradient(colors: [glassAccentB, glassAccentB.opacity(0.35)], startPoint: .leading, endPoint: .trailing),
+                            style: StrokeStyle(lineWidth: 2.1, lineCap: .round, lineJoin: .round)
+                        )
+                }
+
+                VStack {
+                    HStack {
+                        Text("\(Int(ceiling.rounded())) Mbps")
+                            .font(.system(size: 10, weight: .medium, design: .rounded))
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 0)
+                        LegendPill(label: "Download", color: glassAccentA)
+                        LegendPill(label: "Upload", color: glassAccentB)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+
+                    Spacer(minLength: 0)
+                }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(terminalPanel.opacity(0.92), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(.white.opacity(0.24), lineWidth: 0.8)
+            }
         }
-        .buttonStyle(.plain)
-        .overlay {
-            RoundedRectangle(cornerRadius: 11, style: .continuous)
-                .strokeBorder(.white.opacity(0.12), lineWidth: 0.8)
+    }
+
+    private func linePath(values: [Double], in size: CGSize, maxValue: Double) -> Path {
+        let trimmed = Array(values.suffix(80))
+        guard trimmed.count > 1 else {
+            return Path()
         }
+
+        let width = max(size.width - 20, 1)
+        let height = max(size.height - 20, 1)
+        let stepX = width / CGFloat(trimmed.count - 1)
+
+        var path = Path()
+
+        for index in trimmed.indices {
+            let clamped = min(max(trimmed[index], 0), maxValue)
+            let x = 10 + CGFloat(index) * stepX
+            let y = 10 + height - (CGFloat(clamped / maxValue) * height)
+            let point = CGPoint(x: x, y: y)
+
+            if index == trimmed.startIndex {
+                path.move(to: point)
+            } else {
+                path.addLine(to: point)
+            }
+        }
+
+        return path
     }
 }
 
-private func barString(value: Double, maxValue: Double, width: Int) -> String {
-    let safeMax = max(maxValue, 0.0001)
-    let normalized = min(max(value / safeMax, 0), 1)
-    let filled = Int((normalized * Double(width)).rounded())
-    let empty = max(width - filled, 0)
+private struct GridLines: Shape {
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let rows = 4
+        let columns = 6
 
-    return "[" + String(repeating: "#", count: filled) + String(repeating: ".", count: empty) + "]"
+        for row in 0...rows {
+            let y = rect.minY + (rect.height / CGFloat(rows)) * CGFloat(row)
+            path.move(to: CGPoint(x: rect.minX, y: y))
+            path.addLine(to: CGPoint(x: rect.maxX, y: y))
+        }
+
+        for column in 0...columns {
+            let x = rect.minX + (rect.width / CGFloat(columns)) * CGFloat(column)
+            path.move(to: CGPoint(x: x, y: rect.minY))
+            path.addLine(to: CGPoint(x: x, y: rect.maxY))
+        }
+
+        return path
+    }
 }
 
-private func sparkline(values: [Double], maxValue: Double, width: Int) -> String {
-    guard width > 0 else {
-        return ""
+private struct LegendPill: View {
+    let label: String
+    let color: Color
+
+    var body: some View {
+        HStack(spacing: 5) {
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+            Text(label)
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
+        .background(.white.opacity(0.24), in: Capsule())
     }
-
-    let windowed = Array(values.suffix(width))
-    if windowed.isEmpty {
-        return String(repeating: ".", count: width)
-    }
-
-    let safeMax = max(maxValue, 0.0001)
-    let palette: [Character] = [".", ":", "-", "=", "+", "*", "%", "#", "@"]
-
-    var chars = String()
-
-    for value in windowed {
-        let normalized = min(max(value / safeMax, 0), 1)
-        let index = min(Int((normalized * Double(palette.count - 1)).rounded()), palette.count - 1)
-        chars.append(palette[index])
-    }
-
-    if chars.count < width {
-        chars = String(repeating: ".", count: width - chars.count) + chars
-    }
-
-    return chars
 }
