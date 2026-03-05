@@ -12,17 +12,18 @@ It shows live network throughput in your menu bar with mood emojis that reflect 
 
 ## Design Direction
 
-- Liquid-glass style bubble in the menu bar label
-- Glassy popover with gradient background and rounded metric cards
-- Rounded typography and minimal controls for a clean native feel
+- Liquid-glass style bubble directly in the menu bar label
+- Linux/CLI inspired dashboard with monospaced terminal visuals
+- Command-style menu actions (`$ open --dashboard`, pause, refresh, reset, quit)
 
 ## Features
 
 - Real-time upload and download tracking
 - Primary interface detection (with IPv4/IPv6 fallback)
-- Compact speed badge in the menu bar
+- Menu bar label with emoji + arrows (`↓ download`, `↑ upload`)
 - Emoji mood indicator based on current speed
-- Quit action from the popover
+- Click menu with command actions + live dashboard preview
+- Dedicated full dashboard window
 
 ## Requirements
 

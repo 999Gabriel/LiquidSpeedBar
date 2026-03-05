@@ -12,13 +12,34 @@ final class NetworkSpeedMonitor: ObservableObject {
     @Published private(set) var downloadBytesPerSecond: Double = 0
     @Published private(set) var uploadBytesPerSecond: Double = 0
     @Published private(set) var lastUpdated: Date = .now
+    @Published private(set) var activeInterfaceName: String = "auto"
+    @Published private(set) var downloadHistoryMbps: [Double] = []
+    @Published private(set) var uploadHistoryMbps: [Double] = []
+    @Published private(set) var isPaused: Bool = false
 
     private let samplingInterval: TimeInterval = 1.0
+    private let historyLimit = 90
     private var timer: Timer?
     private var previousSample: NetworkByteSample?
 
     var totalBytesPerSecond: Double {
         downloadBytesPerSecond + uploadBytesPerSecond
+    }
+
+    var downloadMbps: Double {
+        downloadBytesPerSecond * 8.0 / 1_000_000.0
+    }
+
+    var uploadMbps: Double {
+        uploadBytesPerSecond * 8.0 / 1_000_000.0
+    }
+
+    var totalMbps: Double {
+        downloadMbps + uploadMbps
+    }
+
+    var peakMbps: Double {
+        max(10.0, downloadHistoryMbps.max() ?? 0, uploadHistoryMbps.max() ?? 0)
     }
 
     var compactSpeedText: String {
@@ -33,10 +54,16 @@ final class NetworkSpeedMonitor: ObservableObject {
         Self.format(bytesPerSecond: uploadBytesPerSecond)
     }
 
-    var speedMood: Mood {
-        let megabitsPerSecond = totalBytesPerSecond * 8.0 / 1_000_000.0
+    var downloadMenuText: String {
+        Self.formatMenuRate(bytesPerSecond: downloadBytesPerSecond)
+    }
 
-        switch megabitsPerSecond {
+    var uploadMenuText: String {
+        Self.formatMenuRate(bytesPerSecond: uploadBytesPerSecond)
+    }
+
+    var speedMood: Mood {
+        switch totalMbps {
         case ..<2:
             return Mood(emoji: "😴", description: "Network is sleepy")
         case ..<15:
@@ -55,7 +82,45 @@ final class NetworkSpeedMonitor: ObservableObject {
         startSampling()
     }
 
+    func toggleSampling() {
+        if isPaused {
+            resumeSampling()
+        } else {
+            pauseSampling()
+        }
+    }
+
+    func resetHistory() {
+        downloadHistoryMbps.removeAll()
+        uploadHistoryMbps.removeAll()
+    }
+
+    func forceRefresh() {
+        sampleNow()
+    }
+
+    private func pauseSampling() {
+        timer?.invalidate()
+        timer = nil
+        isPaused = true
+    }
+
+    private func resumeSampling() {
+        guard isPaused else {
+            return
+        }
+
+        isPaused = false
+        previousSample = nil
+        sampleNow()
+        startSampling()
+    }
+
     private func startSampling() {
+        guard timer == nil else {
+            return
+        }
+
         timer = Timer.scheduledTimer(withTimeInterval: samplingInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.sampleNow()
@@ -64,14 +129,17 @@ final class NetworkSpeedMonitor: ObservableObject {
     }
 
     private func sampleNow() {
-        let sample = NetworkByteSample.capture(preferredInterface: PreferredInterfaceResolver.resolve())
+        let preferredInterface = PreferredInterfaceResolver.resolve()
+        let sample = NetworkByteSample.capture(preferredInterface: preferredInterface)
 
         defer {
             previousSample = sample
             lastUpdated = sample.timestamp
+            activeInterfaceName = sample.interfaceName ?? "aggregate"
         }
 
         guard let previousSample else {
+            appendHistory(downloadMbps: 0, uploadMbps: 0)
             return
         }
 
@@ -89,6 +157,21 @@ final class NetworkSpeedMonitor: ObservableObject {
 
         downloadBytesPerSecond = Double(downloadDelta) / elapsed
         uploadBytesPerSecond = Double(uploadDelta) / elapsed
+
+        appendHistory(downloadMbps: downloadMbps, uploadMbps: uploadMbps)
+    }
+
+    private func appendHistory(downloadMbps: Double, uploadMbps: Double) {
+        downloadHistoryMbps.append(max(downloadMbps, 0))
+        uploadHistoryMbps.append(max(uploadMbps, 0))
+
+        if downloadHistoryMbps.count > historyLimit {
+            downloadHistoryMbps.removeFirst(downloadHistoryMbps.count - historyLimit)
+        }
+
+        if uploadHistoryMbps.count > historyLimit {
+            uploadHistoryMbps.removeFirst(uploadHistoryMbps.count - historyLimit)
+        }
     }
 
     static func format(bytesPerSecond: Double) -> String {
@@ -109,25 +192,54 @@ final class NetworkSpeedMonitor: ObservableObject {
 
         return String(format: "%.1f %@", value, units[unitIndex])
     }
+
+    static func formatMenuRate(bytesPerSecond: Double) -> String {
+        let safeValue = max(bytesPerSecond, 0)
+        let units = ["B", "K", "M", "G"]
+
+        var value = safeValue
+        var unitIndex = 0
+
+        while value >= 1000, unitIndex < units.count - 1 {
+            value /= 1000
+            unitIndex += 1
+        }
+
+        if unitIndex == 0 {
+            return String(format: "%.0f%@", value, units[unitIndex])
+        }
+
+        if value >= 100 {
+            return String(format: "%.0f%@", value, units[unitIndex])
+        }
+
+        return String(format: "%.1f%@", value, units[unitIndex])
+    }
 }
 
 private struct NetworkByteSample {
     let timestamp: Date
+    let interfaceName: String?
     let receivedBytes: UInt64
     let sentBytes: UInt64
 
     static func capture(preferredInterface: String?) -> NetworkByteSample {
         let countersByInterface = InterfaceCounterCollector.collect()
 
+        let interfaceName: String?
         let counters: InterfaceCounter
+
         if let preferredInterface, let preferredCounters = countersByInterface[preferredInterface] {
+            interfaceName = preferredInterface
             counters = preferredCounters
         } else {
+            interfaceName = nil
             counters = InterfaceCounterCollector.aggregate(countersByInterface)
         }
 
         return NetworkByteSample(
             timestamp: Date(),
+            interfaceName: interfaceName,
             receivedBytes: counters.receivedBytes,
             sentBytes: counters.sentBytes
         )
