@@ -64,18 +64,28 @@ private struct StatusBarCompactView: View {
     var body: some View {
         HStack(alignment: .center, spacing: 4) {
             Text(monitor.moodEmoji)
-                .font(.system(size: 14))
-                .frame(width: 16)
+                .font(.system(size: 16))
+                .frame(width: 18)
 
-            VStack(alignment: .leading, spacing: -1) {
+            VStack(alignment: .leading, spacing: -2) {
                 Text("↓\(monitor.downloadCompact)")
                 Text("↑\(monitor.uploadCompact)")
             }
-            .font(.system(size: 8, weight: .bold, design: .rounded))
+            .font(.system(size: 10, weight: .bold, design: .rounded))
             .monospacedDigit()
             .lineLimit(1)
         }
-        .foregroundStyle(.primary)
+        .padding(.horizontal, 6)
+        .padding(.vertical, 1)
+        .foregroundStyle(.black.opacity(0.92))
+        .background(
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(Color.white)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .strokeBorder(.black.opacity(0.06), lineWidth: 0.6)
+        }
         .fixedSize()
     }
 }
