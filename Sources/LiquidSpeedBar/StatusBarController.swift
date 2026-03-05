@@ -62,21 +62,22 @@ private struct StatusBarCompactView: View {
     @ObservedObject var monitor: NetworkSpeedMonitor
 
     var body: some View {
-        HStack(alignment: .center, spacing: 4) {
+        HStack(alignment: .center, spacing: 5) {
             Text(monitor.moodEmoji)
-                .font(.system(size: 16))
-                .frame(width: 18)
+                .font(.system(size: 18))
+                .frame(width: 20)
 
-            VStack(alignment: .leading, spacing: -2) {
+            VStack(alignment: .leading, spacing: -1) {
                 Text("↓\(monitor.downloadCompact)")
                 Text("↑\(monitor.uploadCompact)")
             }
-            .font(.system(size: 10, weight: .bold, design: .rounded))
+            .font(.system(size: 11, weight: .bold, design: .rounded))
             .monospacedDigit()
             .lineLimit(1)
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 1)
+        .padding(.horizontal, 9)
+        .padding(.vertical, 2)
+        .frame(minWidth: 96, alignment: .leading)
         .foregroundStyle(.black.opacity(0.92))
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)

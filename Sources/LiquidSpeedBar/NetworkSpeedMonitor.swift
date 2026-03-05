@@ -32,15 +32,15 @@ final class NetworkSpeedMonitor: ObservableObject {
 
         switch totalMbps {
         case ..<1.0:
-            return "😕"
+            return "😞"
         case ..<8.0:
             return "🙂"
         case ..<40.0:
-            return "😄"
+            return "😊"
         case ..<150.0:
-            return "🚀"
+            return "😎"
         default:
-            return "🤯"
+            return "🥳"
         }
     }
 
