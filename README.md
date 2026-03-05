@@ -1,104 +1,113 @@
-# LiquidSpeedBar
+<p align="center">
+  <img src="source/liquidspeedbar.png" alt="LiquidSpeedBar App Icon" width="128" height="128" />
+</p>
 
-Minimal macOS menu bar network speed app built in Swift.
+<h1 align="center">LiquidSpeedBar</h1>
+
+<p align="center">
+  A lightweight macOS menu bar utility for live network speed monitoring.
+</p>
+
+## Overview
+
+LiquidSpeedBar shows live download and upload speeds directly in the menu bar, with a compact activity graph and connection health score.
+
+The app also includes mood emojis in the UI to reflect current connection quality.
 
 ## Features
 
-- Live upload/download speed directly in the menu bar
-- Emoji mood indicator + health score
-- Mini activity graph in the menu bar and popover
-- Copy diagnostics snapshot
-- Buy Me a Coffee support button
-- Custom app icon from `source/liquidspeedbar.png` (or fallback `Sources/LiquidSpeedBar/liquidspeedbar.png`)
+- Live upload and download speed in the menu bar
+- Compact activity graph for traffic trend visualization
+- Health score with bottleneck and stability insight
+- Diagnostics snapshot copy action
+- Buy Me a Coffee button in the popover
+- Custom app icon generated from `source/liquidspeedbar.png`
 
-## Development
+## Run Locally
 
 ```bash
 swift run
 ```
 
+## Build
+
 ```bash
 swift build
 ```
 
-## Download Options (3)
+## Distribution (3 Options)
 
-### 1) Direct DMG Download (.app inside)
+### 1. DMG Download (.app inside)
 
-Build a distributable `.dmg` and `.app.tar.gz` locally:
+Create distributable artifacts:
 
 ```bash
 scripts/package-macos.sh
 ```
 
-Output files:
+Generated outputs:
 
 - `dist/LiquidSpeedBar.app`
 - `dist/LiquidSpeedBar-macOS-<version>.dmg`
 - `dist/LiquidSpeedBar-macOS-<version>.app.tar.gz`
 
-The icon is generated automatically from your PNG via:
+### 2. Terminal Install
 
-```bash
-scripts/generate-icon-assets.sh
-```
-
-### 2) Install From Terminal (one command)
-
-Users can install with:
+Users can install with a single command:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/999Gabriel/LiquidSpeedBar/main/scripts/install.sh | bash
 ```
 
 Installer behavior:
-- If a GitHub release contains a `.app.tar.gz` asset, it installs that.
-- If no release exists yet, it automatically falls back to building from source locally and then installs.
 
-This installs `LiquidSpeedBar.app` to `/Applications`.
+- Uses latest `.app.tar.gz` release asset when available
+- Falls back to source build if no release asset exists
 
-### 3) Mac App Store Distribution
+Installs to `/Applications/LiquidSpeedBar.app`.
 
-App Store archive/export flow:
+### 3. Mac App Store Submission
+
+Generate archive/export package:
 
 ```bash
 DEVELOPER_TEAM_ID=YOURTEAMID scripts/archive-appstore.sh
 ```
 
-This generates an App Store export under `dist/appstore/export`.
+Output path:
 
-## CI Release Automation
+- `dist/appstore/export`
 
-Tag a version (for example `v1.0.1`) and push it to trigger the GitHub Actions workflow that builds and publishes release assets (`.dmg` + `.app.tar.gz`) to GitHub Releases:
+## Release Automation
+
+Tag and push to publish release assets through GitHub Actions:
 
 ```bash
 git tag v1.0.1
 git push origin v1.0.1
 ```
 
-If you need to run the release workflow manually for an existing tag, dispatch it against that tag ref:
+Workflow file:
+
+- `.github/workflows/release-macos.yml`
+
+Manual run for an existing tag:
 
 ```bash
 gh workflow run release-macos.yml --repo 999Gabriel/LiquidSpeedBar --ref v1.0.1
 ```
 
-If you need to force-refresh raw script cache when testing installer updates:
-
-```bash
-curl -fsSL "https://raw.githubusercontent.com/999Gabriel/LiquidSpeedBar/main/scripts/install.sh?$(date +%s)" | bash
-```
-
-Workflow file: `.github/workflows/release-macos.yml`
-
 ## App Store Checklist
 
 - Create app in App Store Connect
-- Set bundle ID to match `PRODUCT_BUNDLE_IDENTIFIER`
-- Configure signing + certificates in Xcode
+- Match bundle ID with `PRODUCT_BUNDLE_IDENTIFIER`
+- Configure signing certificates and team in Xcode
 - Run `scripts/archive-appstore.sh`
-- Upload the exported package with Transporter
+- Upload exported package with Transporter
 - Submit for review
 
 ## Support
 
-Buy me a coffee: https://buymeacoffee.com/the999gabriel
+Buy Me a Coffee:
+
+- https://buymeacoffee.com/the999gabriel
