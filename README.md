@@ -53,6 +53,13 @@ Generated outputs:
 - `dist/LiquidSpeedBar-macOS-<version>.dmg`
 - `dist/LiquidSpeedBar-macOS-<version>.app.tar.gz`
 
+The DMG uses a custom drag-to-Applications window with:
+
+- App icon on the left
+- Applications drop target on the right
+- Minimal bright pastel gradient background
+- Locked 640x420 Finder layout
+
 Unsigned local test build only:
 
 ```bash
@@ -92,8 +99,8 @@ Output path:
 Tag and push to publish release assets through GitHub Actions:
 
 ```bash
-git tag v1.0.1
-git push origin v1.0.1
+git tag v1.1.0
+git push origin v1.1.0
 ```
 
 Workflow file:
@@ -112,7 +119,7 @@ For signed/notarized tag releases, configure these GitHub repository secrets:
 Manual run for an existing tag:
 
 ```bash
-gh workflow run release-macos.yml --repo 999Gabriel/LiquidSpeedBar --ref v1.0.1
+gh workflow run release-macos.yml --repo 999Gabriel/LiquidSpeedBar --ref v1.1.0
 ```
 
 Manual workflow dispatch without a tag builds unsigned test artifacts only.

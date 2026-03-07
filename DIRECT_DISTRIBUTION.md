@@ -36,6 +36,8 @@ This produces:
 - `dist/LiquidSpeedBar-macOS-<version>.dmg` (signed, notarized, stapled)
 - `dist/LiquidSpeedBar-macOS-<version>.app.tar.gz`
 
+The DMG window is styled with `create-dmg` using generated assets in `build/dmg/`.
+
 ## Verify on any machine
 
 ```bash

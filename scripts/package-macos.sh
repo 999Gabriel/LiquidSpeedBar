@@ -4,6 +4,9 @@ set -euo pipefail
 APP_NAME="LiquidSpeedBar"
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
+BUILD_DIR="$ROOT_DIR/build"
+DMG_ASSETS_DIR="$BUILD_DIR/dmg"
+DMG_SOURCE_DIR="$DMG_ASSETS_DIR/source"
 XCODE_DERIVED_DATA="$ROOT_DIR/.build/xcode-dist"
 XCODE_APP_PATH="$XCODE_DERIVED_DATA/Build/Products/Release/$APP_NAME.app"
 VERSION="${VERSION:-$(git -C "$ROOT_DIR" describe --tags --always --dirty 2>/dev/null || date +%Y.%m.%d)}"
@@ -11,6 +14,7 @@ DMG_NAME="$APP_NAME-macOS-$VERSION.dmg"
 TAR_NAME="$APP_NAME-macOS-$VERSION.app.tar.gz"
 APP_DIR="$DIST_DIR/$APP_NAME.app"
 APP_NOTARY_ZIP="$DIST_DIR/$APP_NAME-macOS-$VERSION-notary.zip"
+VOLUME_NAME="$APP_NAME Installer"
 
 DEVELOPER_ID_APPLICATION="${DEVELOPER_ID_APPLICATION:-}"
 SIGNING_IDENTITY="${SIGNING_IDENTITY:-$DEVELOPER_ID_APPLICATION}"
@@ -43,8 +47,9 @@ notary_submit() {
 }
 
 require_cmd xcodebuild
-require_cmd hdiutil
 require_cmd tar
+require_cmd swift
+require_cmd create-dmg
 
 if [[ -z "$SIGNING_IDENTITY" ]]; then
   if [[ "$ALLOW_UNSIGNED_RELEASE" == "1" ]]; then
@@ -76,10 +81,13 @@ fi
 echo "[1/8] Generating icon assets..."
 "$ROOT_DIR/scripts/generate-icon-assets.sh"
 
-echo "[2/8] Generating Xcode project..."
+echo "[2/8] Generating DMG assets..."
+swift "$ROOT_DIR/scripts/generate-dmg-assets.swift" "$DMG_ASSETS_DIR"
+
+echo "[3/8] Generating Xcode project..."
 "$ROOT_DIR/scripts/bootstrap-xcodeproj.sh"
 
-echo "[3/8] Building release app bundle..."
+echo "[4/8] Building release app bundle..."
 rm -rf "$XCODE_DERIVED_DATA"
 xcodebuild \
   -project "$ROOT_DIR/LiquidSpeedBar.xcodeproj" \
@@ -96,13 +104,13 @@ if [[ ! -d "$XCODE_APP_PATH" ]]; then
   exit 1
 fi
 
-echo "[4/8] Preparing distributable app..."
+echo "[5/8] Preparing distributable app..."
 rm -rf "$DIST_DIR"
 mkdir -p "$DIST_DIR"
 cp -R "$XCODE_APP_PATH" "$APP_DIR"
 
 if [[ -n "$SIGNING_IDENTITY" ]]; then
-  echo "[5/8] Signing app bundle with Developer ID..."
+  echo "[6/8] Signing app bundle with Developer ID..."
   codesign \
     --force \
     --deep \
@@ -113,7 +121,7 @@ if [[ -n "$SIGNING_IDENTITY" ]]; then
   codesign --verify --strict --deep --verbose=2 "$APP_DIR"
 
   if [[ "$SKIP_NOTARIZATION" != "1" ]]; then
-    echo "[6/8] Notarizing app bundle..."
+    echo "[7/8] Notarizing app bundle..."
     rm -f "$APP_NOTARY_ZIP"
     ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "$APP_NOTARY_ZIP"
     notary_submit "$APP_NOTARY_ZIP" >/dev/null
@@ -121,35 +129,35 @@ if [[ -n "$SIGNING_IDENTITY" ]]; then
     xcrun stapler validate "$APP_DIR" >/dev/null
     rm -f "$APP_NOTARY_ZIP"
   else
-    echo "[6/8] Skipping notarization (SKIP_NOTARIZATION=1)."
+    echo "[7/8] Skipping notarization (SKIP_NOTARIZATION=1)."
   fi
 fi
 
-echo "[7/8] Creating release archives..."
+echo "[8/8] Creating release archives..."
 tar -czf "$DIST_DIR/$TAR_NAME" -C "$DIST_DIR" "$APP_NAME.app"
 
-DMG_STAGING="$DIST_DIR/dmg-root"
-mkdir -p "$DMG_STAGING"
-if [[ -n "$SIGNING_IDENTITY" ]]; then
-  ditto "$APP_DIR" "$DMG_STAGING/$APP_NAME.app"
-else
-  cp -R "$APP_DIR" "$DMG_STAGING/"
-fi
-ln -sfn /Applications "$DMG_STAGING/Applications"
-cat > "$DMG_STAGING/Drag ${APP_NAME} to Applications.txt" <<TXT
-To install:
-1. Drag ${APP_NAME}.app onto Applications.
-2. Launch ${APP_NAME} from Applications.
-TXT
-hdiutil create \
-  -volname "$APP_NAME" \
-  -srcfolder "$DMG_STAGING" \
-  -ov -format UDZO \
-  "$DIST_DIR/$DMG_NAME" >/dev/null
-rm -rf "$DMG_STAGING"
+rm -rf "$DMG_SOURCE_DIR"
+mkdir -p "$DMG_SOURCE_DIR"
+ditto "$APP_DIR" "$DMG_SOURCE_DIR/$APP_NAME.app"
+
+rm -f "$DIST_DIR/$DMG_NAME"
+create-dmg \
+  --volname "$VOLUME_NAME" \
+  --window-pos 200 120 \
+  --window-size 640 420 \
+  --icon-size 128 \
+  --text-size 14 \
+  --icon "$APP_NAME.app" 180 210 \
+  --hide-extension "$APP_NAME.app" \
+  --app-drop-link 460 210 \
+  --background "$DMG_ASSETS_DIR/background.png" \
+  --no-internet-enable \
+  --hdiutil-quiet \
+  "$DIST_DIR/$DMG_NAME" \
+  "$DMG_SOURCE_DIR"
 
 if [[ -n "$SIGNING_IDENTITY" ]]; then
-  echo "[8/8] Signing DMG and validating Gatekeeper checks..."
+  echo "Signing DMG and validating Gatekeeper checks..."
   codesign \
     --force \
     --timestamp \
