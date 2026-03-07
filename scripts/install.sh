@@ -31,7 +31,6 @@ install_from_archive() {
   fi
 
   cp -R "$workdir/$APP_NAME.app" "$INSTALL_DIR/"
-  xattr -dr com.apple.quarantine "$INSTALL_DIR/$APP_NAME.app" 2>/dev/null || true
 
   echo "Installed: $INSTALL_DIR/$APP_NAME.app"
   open "$INSTALL_DIR/$APP_NAME.app" || true
@@ -83,7 +82,6 @@ build_from_source() {
   fi
 
   cp -R "$built_app" "$INSTALL_DIR/"
-  xattr -dr com.apple.quarantine "$INSTALL_DIR/$APP_NAME.app" 2>/dev/null || true
 
   echo "Installed from source build: $INSTALL_DIR/$APP_NAME.app"
   open "$INSTALL_DIR/$APP_NAME.app" || true

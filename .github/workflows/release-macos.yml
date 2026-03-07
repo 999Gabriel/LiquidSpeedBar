@@ -22,9 +22,76 @@ jobs:
           brew update
           brew install xcodegen
 
-      - name: Build DMG and app archive
+      - name: Build unsigned artifacts (manual run only)
+        if: github.event_name == 'workflow_dispatch' && !startsWith(github.ref, 'refs/tags/v')
         run: |
           chmod +x scripts/package-macos.sh
+          ALLOW_UNSIGNED_RELEASE=1 SKIP_NOTARIZATION=1 scripts/package-macos.sh
+
+      - name: Verify signing/notarization secrets
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
+          NOTARY_APP_PASSWORD: ${{ secrets.NOTARY_APP_PASSWORD }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+        run: |
+          for key in \
+            DEVELOPER_ID_APPLICATION \
+            MACOS_CERTIFICATE_P12_BASE64 \
+            MACOS_CERTIFICATE_PASSWORD \
+            NOTARY_APPLE_ID \
+            NOTARY_APP_PASSWORD \
+            NOTARY_TEAM_ID; do
+            if [[ -z "${!key}" ]]; then
+              echo "Missing required secret: $key" >&2
+              exit 1
+            fi
+          done
+
+      - name: Import Developer ID certificate
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/developer-id-app.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/release-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+
+          echo "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security default-keychain -d user -s "$KEYCHAIN_PATH"
+
+          security import "$CERT_PATH" \
+            -k "$KEYCHAIN_PATH" \
+            -P "$MACOS_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign \
+            -T /usr/bin/security \
+            -A
+
+          security set-key-partition-list \
+            -S apple-tool:,apple:,codesign: \
+            -s \
+            -k "$KEYCHAIN_PASSWORD" \
+            "$KEYCHAIN_PATH"
+
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+      - name: Build signed and notarized artifacts (tag release)
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          chmod +x scripts/package-macos.sh
+          DEVELOPER_ID_APPLICATION="${{ secrets.DEVELOPER_ID_APPLICATION }}" \
+          NOTARY_APPLE_ID="${{ secrets.NOTARY_APPLE_ID }}" \
+          NOTARY_APP_PASSWORD="${{ secrets.NOTARY_APP_PASSWORD }}" \
+          NOTARY_TEAM_ID="${{ secrets.NOTARY_TEAM_ID }}" \
           scripts/package-macos.sh
 
       - name: Upload workflow artifacts

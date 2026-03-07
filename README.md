@@ -39,9 +39,11 @@ swift build
 
 ### 1. DMG Download (.app inside)
 
-Create distributable artifacts:
+Create a signed and notarized DMG + app archive:
 
 ```bash
+DEVELOPER_ID_APPLICATION="Developer ID Application: Your Name (TEAMID)" \
+NOTARY_KEYCHAIN_PROFILE="LiquidSpeedBarNotary" \
 scripts/package-macos.sh
 ```
 
@@ -50,6 +52,12 @@ Generated outputs:
 - `dist/LiquidSpeedBar.app`
 - `dist/LiquidSpeedBar-macOS-<version>.dmg`
 - `dist/LiquidSpeedBar-macOS-<version>.app.tar.gz`
+
+Unsigned local test build only:
+
+```bash
+ALLOW_UNSIGNED_RELEASE=1 SKIP_NOTARIZATION=1 scripts/package-macos.sh
+```
 
 ### 2. Terminal Install
 
@@ -63,6 +71,7 @@ Installer behavior:
 
 - Uses latest `.app.tar.gz` release asset when available
 - Falls back to source build if no release asset exists
+- Keeps Gatekeeper verification intact (no quarantine bypass)
 
 Installs to `/Applications/LiquidSpeedBar.app`.
 
@@ -91,11 +100,43 @@ Workflow file:
 
 - `.github/workflows/release-macos.yml`
 
+For signed/notarized tag releases, configure these GitHub repository secrets:
+
+- `DEVELOPER_ID_APPLICATION` (for example `Developer ID Application: Your Name (TEAMID)`)
+- `MACOS_CERTIFICATE_P12_BASE64` (base64-encoded Developer ID Application `.p12`)
+- `MACOS_CERTIFICATE_PASSWORD`
+- `NOTARY_APPLE_ID`
+- `NOTARY_APP_PASSWORD` (app-specific password)
+- `NOTARY_TEAM_ID`
+
 Manual run for an existing tag:
 
 ```bash
 gh workflow run release-macos.yml --repo 999Gabriel/LiquidSpeedBar --ref v1.0.1
 ```
+
+Manual workflow dispatch without a tag builds unsigned test artifacts only.
+
+## Gatekeeper Diagnostics
+
+Run trust checks on any machine:
+
+```bash
+scripts/verify-gatekeeper.sh /Applications/LiquidSpeedBar.app
+```
+
+Or run the raw commands:
+
+```bash
+spctl -a -vvv --type exec "/Applications/LiquidSpeedBar.app"
+codesign -dv --verbose=4 "/Applications/LiquidSpeedBar.app"
+xattr -l "/Applications/LiquidSpeedBar.app"
+xcrun stapler validate "/Applications/LiquidSpeedBar.app"
+```
+
+Detailed direct distribution setup:
+
+- `DIRECT_DISTRIBUTION.md`
 
 ## App Store Checklist
 
