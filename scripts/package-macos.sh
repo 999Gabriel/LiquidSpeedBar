@@ -43,6 +43,12 @@ tar -czf "$DIST_DIR/$TAR_NAME" -C "$DIST_DIR" "$APP_NAME.app"
 DMG_STAGING="$DIST_DIR/dmg-root"
 mkdir -p "$DMG_STAGING"
 cp -R "$APP_DIR" "$DMG_STAGING/"
+ln -sfn /Applications "$DMG_STAGING/Applications"
+cat > "$DMG_STAGING/Drag ${APP_NAME} to Applications.txt" <<TXT
+To install:
+1. Drag ${APP_NAME}.app onto Applications.
+2. Launch ${APP_NAME} from Applications.
+TXT
 hdiutil create \
   -volname "$APP_NAME" \
   -srcfolder "$DMG_STAGING" \
