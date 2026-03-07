@@ -31,15 +31,13 @@ jobs:
       - name: Verify signing/notarization secrets
         if: startsWith(github.ref, 'refs/tags/v')
         env:
-          DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
-          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
-          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID }}
-          NOTARY_APP_PASSWORD: ${{ secrets.NOTARY_APP_PASSWORD }}
-          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID }}
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' && secrets.MACOS_CERTIFICATE_P12_BASE64 || secrets.BUILD_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD != '' && secrets.MACOS_CERTIFICATE_PASSWORD || secrets.P12_PASSWORD }}
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID != '' && secrets.NOTARY_APPLE_ID || secrets.APPLE_ID }}
+          NOTARY_APP_PASSWORD: ${{ secrets.NOTARY_APP_PASSWORD != '' && secrets.NOTARY_APP_PASSWORD || secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID != '' && secrets.NOTARY_TEAM_ID || secrets.APPLE_TEAM_ID }}
         run: |
           for key in \
-            DEVELOPER_ID_APPLICATION \
             MACOS_CERTIFICATE_P12_BASE64 \
             MACOS_CERTIFICATE_PASSWORD \
             NOTARY_APPLE_ID \
@@ -54,12 +52,18 @@ jobs:
       - name: Import Developer ID certificate
         if: startsWith(github.ref, 'refs/tags/v')
         env:
-          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 }}
-          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          MACOS_CERTIFICATE_P12_BASE64: ${{ secrets.MACOS_CERTIFICATE_P12_BASE64 != '' && secrets.MACOS_CERTIFICATE_P12_BASE64 || secrets.BUILD_CERTIFICATE_BASE64 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD != '' && secrets.MACOS_CERTIFICATE_PASSWORD || secrets.P12_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID != '' && secrets.NOTARY_APPLE_ID || secrets.APPLE_ID }}
+          NOTARY_APP_PASSWORD: ${{ secrets.NOTARY_APP_PASSWORD != '' && secrets.NOTARY_APP_PASSWORD || secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID != '' && secrets.NOTARY_TEAM_ID || secrets.APPLE_TEAM_ID }}
         run: |
           CERT_PATH="$RUNNER_TEMP/developer-id-app.p12"
           KEYCHAIN_PATH="$RUNNER_TEMP/release-signing.keychain-db"
-          KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          if [[ -z "${KEYCHAIN_PASSWORD:-}" ]]; then
+            KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          fi
 
           echo "$MACOS_CERTIFICATE_P12_BASE64" | base64 --decode > "$CERT_PATH"
 
@@ -84,14 +88,33 @@ jobs:
 
           security find-identity -v -p codesigning "$KEYCHAIN_PATH"
 
+          SIGNING_IDENTITY="$(
+            security find-identity -v -p codesigning "$KEYCHAIN_PATH" |
+            sed -n 's/.*"\(Developer ID Application:.*\)"/\1/p' |
+            head -n 1
+          )"
+
+          if [[ -z "$SIGNING_IDENTITY" ]]; then
+            echo "No Developer ID Application certificate was found in the imported .p12." >&2
+            echo "Export the correct Developer ID Application certificate from Keychain Access and store it in BUILD_CERTIFICATE_BASE64 or MACOS_CERTIFICATE_P12_BASE64." >&2
+            exit 1
+          fi
+
+          echo "Using signing identity: $SIGNING_IDENTITY"
+          echo "SIGNING_IDENTITY=$SIGNING_IDENTITY" >> "$GITHUB_ENV"
+
       - name: Build signed and notarized artifacts (tag release)
         if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          NOTARY_APPLE_ID: ${{ secrets.NOTARY_APPLE_ID != '' && secrets.NOTARY_APPLE_ID || secrets.APPLE_ID }}
+          NOTARY_APP_PASSWORD: ${{ secrets.NOTARY_APP_PASSWORD != '' && secrets.NOTARY_APP_PASSWORD || secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          NOTARY_TEAM_ID: ${{ secrets.NOTARY_TEAM_ID != '' && secrets.NOTARY_TEAM_ID || secrets.APPLE_TEAM_ID }}
         run: |
           chmod +x scripts/package-macos.sh
-          DEVELOPER_ID_APPLICATION="${{ secrets.DEVELOPER_ID_APPLICATION }}" \
-          NOTARY_APPLE_ID="${{ secrets.NOTARY_APPLE_ID }}" \
-          NOTARY_APP_PASSWORD="${{ secrets.NOTARY_APP_PASSWORD }}" \
-          NOTARY_TEAM_ID="${{ secrets.NOTARY_TEAM_ID }}" \
+          SIGNING_IDENTITY="${SIGNING_IDENTITY}" \
+          NOTARY_APPLE_ID="${NOTARY_APPLE_ID}" \
+          NOTARY_APP_PASSWORD="${NOTARY_APP_PASSWORD}" \
+          NOTARY_TEAM_ID="${NOTARY_TEAM_ID}" \
           scripts/package-macos.sh
 
       - name: Upload workflow artifacts

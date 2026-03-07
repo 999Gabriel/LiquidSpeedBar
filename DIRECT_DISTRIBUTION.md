@@ -38,6 +38,22 @@ This produces:
 
 The DMG window is styled with `create-dmg` using generated assets in `build/dmg/`.
 
+## GitHub Actions secrets
+
+Provide one value from each pair:
+
+- `BUILD_CERTIFICATE_BASE64` or `MACOS_CERTIFICATE_P12_BASE64`
+- `P12_PASSWORD` or `MACOS_CERTIFICATE_PASSWORD`
+- `APPLE_ID` or `NOTARY_APPLE_ID`
+- `APPLE_APP_SPECIFIC_PASSWORD` or `NOTARY_APP_PASSWORD`
+- `APPLE_TEAM_ID` or `NOTARY_TEAM_ID`
+
+Optional:
+
+- `KEYCHAIN_PASSWORD`
+
+The workflow imports the `.p12` and detects the `Developer ID Application` common name automatically.
+
 ## Verify on any machine
 
 ```bash

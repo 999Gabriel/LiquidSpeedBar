@@ -109,12 +109,16 @@ Workflow file:
 
 For signed/notarized tag releases, configure these GitHub repository secrets:
 
-- `DEVELOPER_ID_APPLICATION` (for example `Developer ID Application: Your Name (TEAMID)`)
-- `MACOS_CERTIFICATE_P12_BASE64` (base64-encoded Developer ID Application `.p12`)
-- `MACOS_CERTIFICATE_PASSWORD`
-- `NOTARY_APPLE_ID`
-- `NOTARY_APP_PASSWORD` (app-specific password)
-- `NOTARY_TEAM_ID`
+- `BUILD_CERTIFICATE_BASE64` or `MACOS_CERTIFICATE_P12_BASE64`
+- `P12_PASSWORD` or `MACOS_CERTIFICATE_PASSWORD`
+- `KEYCHAIN_PASSWORD` (optional)
+- `APPLE_ID` or `NOTARY_APPLE_ID`
+- `APPLE_APP_SPECIFIC_PASSWORD` or `NOTARY_APP_PASSWORD`
+- `APPLE_TEAM_ID` or `NOTARY_TEAM_ID`
+
+The workflow now auto-detects the `Developer ID Application: ...` signing identity from the imported `.p12`, so no separate `DEVELOPER_ID_APPLICATION` secret is required.
+
+Use a `Developer ID Application` certificate export for direct distribution. An `Apple Development` certificate is not sufficient for trusted public DMG releases.
 
 Manual run for an existing tag:
 
